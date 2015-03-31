@@ -47,7 +47,21 @@ import com.easygis.map.Bounds;
  * &nbsp; &nbsp; &nbsp; &nbsp; Created by Klokan Petr Pridal on 2008-07-03.<br>
  * Class is available under the open-source GDAL license (www.gdal.org).<br>
  * 
+ *  What is the coordinate extent of Earth in EPSG:900913?<br>
+ * <br>
+ *       [-20037508.342789244, -20037508.342789244, 20037508.342789244, 20037508.342789244]
+ *       Constant 20037508.342789244 comes from the circumference of the Earth in meters,
+ *       which is 40 thousand kilometers, the coordinate origin is in the middle of extent.
+ *       In fact you can calculate the constant as: 2 * math.pi * 6378137 / 2.0
+ *       $ echo 180 85 | gdaltransform -s_srs EPSG:4326 -t_srs EPSG:900913
+ *       Polar areas with abs(latitude) bigger then 85.05112878 are clipped off.<br>
+ * 	<p>
+ *     What are zoom level constants (pixels/meter) for pyramid with EPSG:900913?<br><br>
  * 
+ *       whole region is on top of pyramid (zoom=0) covered by 256x256 pixels tile,
+ *       every lower zoom level resolution is always divided by two
+ *       initialResolution = 20037508.342789244 * 2 / 256 = 156543.03392804062
+ *       </p>
  */
 public class CoordinatorTranslation {
 
@@ -59,13 +73,13 @@ public class CoordinatorTranslation {
 	/**
 	 * Default resolution
 	 */
-	public double DEFAULT_INIT_RESOLUTION = 2 * Math.PI * 6378137
+	public double DEFAULT_INIT_RESOLUTION = 2D * Math.PI * 6378137D
 			/ DEFAULT_TILE_SIZE;
 
 	/**
 	 * 20037508.342789244
 	 */
-	private final double ORIGIN_SHIFT = 2 * Math.PI * 6378137 / 2.0F;
+	private final double ORIGIN_SHIFT = 2D * Math.PI * 6378137D / 2.0D;
 
 	private int mTileSize;
 
@@ -78,7 +92,7 @@ public class CoordinatorTranslation {
 
 	public CoordinatorTranslation(int tileSize) {
 		mTileSize = tileSize;
-		mResoultion = 2 * Math.PI * 6378137 / mTileSize;
+		mResoultion = 2D * Math.PI * 6378137D / mTileSize;
 	}
 
 	/**
@@ -89,12 +103,12 @@ public class CoordinatorTranslation {
 	 *            latitude
 	 * @param lng
 	 *            longitude
-	 * @return x y of Mercator
+	 * @return x y of Meters
 	 */
-	public double[] translateLatLonToMercator(double lat, double lng) {
-		double mx = lng * ORIGIN_SHIFT / 180.0F;
-		double my = Math.log(Math.tan((90 + lat) * Math.PI / 360.0))
-				/ (Math.PI / 180.0);
+	public double[] translateLatLonToMeters(double lat, double lng) {
+		double mx = lng * ORIGIN_SHIFT / 180.0D;
+		double my = Math.log(Math.tan((90.0D + lat) * Math.PI / 360.0D))
+				/ (Math.PI / 180.0D);
 
 		my = my * ORIGIN_SHIFT / 180.0;
 		return new double[] { mx, my };
@@ -105,12 +119,12 @@ public class CoordinatorTranslation {
 	 * Datum
 	 * 
 	 * @param mx
-	 *            Mercator x
+	 *            Meters x
 	 * @param my
-	 *            Mercator y
+	 *            Meters y
 	 * @return [latitude, longitude]
 	 */
-	public double[] translateMercatorToLatLon(double mx, double my) {
+	public double[] translateMetersToLatLon(double mx, double my) {
 
 		double lon = (mx / ORIGIN_SHIFT) * 180.0;
 		double lat = (my / ORIGIN_SHIFT) * 180.0;
@@ -126,7 +140,7 @@ public class CoordinatorTranslation {
 	 * 
 	 * @return
 	 */
-	public double[] trasnlatePixelsToMercator(int px, int py, int zoom) {
+	public double[] trasnlatePixelsToMeters(int px, int py, int zoom) {
 
 		double res = resolution(zoom);
 		double mx = px * res - ORIGIN_SHIFT;
@@ -139,7 +153,7 @@ public class CoordinatorTranslation {
 	 * 
 	 * @return
 	 */
-	public double[] translateMercatorToPixels(int mx, int my, int zoom) {
+	public double[] translateMetersToPixels(double mx, double my, int zoom) {
 		double res = resolution(zoom);
 		double px = (mx + ORIGIN_SHIFT) / res;
 		double py = (my + ORIGIN_SHIFT) / res;
@@ -161,14 +175,14 @@ public class CoordinatorTranslation {
 	}
 
 	/**
-	 * "Returns tile for given mercator coordinates"
+	 * Returns tile for given Meters coordinates"
 	 * 
 	 * @param mx
 	 * @param my
 	 * @param zoom
 	 */
-	public int[] translateMercatorToTile(int mx, int my, int zoom) {
-		double[] pixels = translateMercatorToPixels(mx, my, zoom);
+	public int[] translateMetersToTile(double mx, double my, int zoom) {
+		double[] pixels = translateMetersToPixels(mx, my, zoom);
 		return translatePixelsToTile((int) pixels[0], (int) pixels[1]);
 	}
 
@@ -181,9 +195,9 @@ public class CoordinatorTranslation {
 	 * @return
 	 */
 	public Bounds translateTileBounds(int tx, int ty, int zoom) {
-		double[] min = trasnlatePixelsToMercator(tx * mTileSize,
+		double[] min = trasnlatePixelsToMeters(tx * mTileSize,
 				ty * mTileSize, zoom);
-		double[] max = trasnlatePixelsToMercator((tx + 1) * mTileSize, (ty + 1)
+		double[] max = trasnlatePixelsToMeters((tx + 1) * mTileSize, (ty + 1)
 				* mTileSize, zoom);
 		return new Bounds(min[0], min[1], max[0], max[1]);
 	}
@@ -196,11 +210,11 @@ public class CoordinatorTranslation {
 	 * @param zoom
 	 * @return
 	 */
-	public Bounds TileLatLonBounds(int tx, int ty, int zoom) {
+	public Bounds transalteTileToLatLonBounds(int tx, int ty, int zoom) {
 
 		Bounds bounds = translateTileBounds(tx, ty, zoom);
-		double[] min = translateMercatorToLatLon(bounds.left, bounds.top);
-		double[] max = translateMercatorToLatLon(bounds.right, bounds.bottom);
+		double[] min = translateMetersToLatLon(bounds.left, bounds.top);
+		double[] max = translateMetersToLatLon(bounds.right, bounds.bottom);
 		return new Bounds(min[0], min[1], max[0], max[1]);
 	}
 
@@ -210,6 +224,6 @@ public class CoordinatorTranslation {
 	 * @return
 	 */
 	public double resolution(int zoom) {
-		return mResoultion / (2 ^ zoom);
+		return mResoultion / Math.pow(2 , zoom);
 	}
 }

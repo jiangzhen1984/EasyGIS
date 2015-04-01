@@ -11,45 +11,72 @@ package com.easygis.map;
  *
  */
 public abstract class EMap implements MapOperation {
+	
+	protected  MapInfo mMapInfo;
+	
+	protected Bounds mBounds;
+	
+	protected double mScale;
+	
+	/**
+	 * Load initial map configuration information
+	 * @param loader
+	 * @return
+	 */
+	public boolean initMapInfo(MapInfoLoader loader) {
+		if (loader == null) {
+			throw new NullPointerException(" loader is null");
+		}
+		mMapInfo = loader.load();
+		if (mMapInfo == null) {
+			return false;
+		}
+		
+		return true;
+	}
 
 
 	/**
 	 * Get current map scale
 	 * @return current scale
 	 */
-	public abstract double getScale();
+	public double getScale() {
+		return mScale;
+	}
 	
 	
 	/**
 	 * Get current map bounds
 	 * @return bounds of map
 	 */
-	public abstract Bounds getBounds();
+	public Bounds getBounds() {
+		return mBounds;
+	}
 	
 	
 	/**
 	 * Get current center of map
 	 * @return array[x,y]
 	 */
-	public abstract double[] getCenter();
+	public double[] getCenter() {
+		return new double[]{(mBounds.right - mBounds.left) / 2, (mBounds.bottom - mBounds.top) / 2};
+	}
 	
 	
 	/**
 	 * Add new layer to current map.<br>
 	 *  Layer index from start 0.
 	 * @param layer
-	 * @return  index of layer belongs
 	 */
-	public abstract int addLayer(Layer layer);
+	public abstract void addLayer(Layer layer);
 	
 	/**
 	 *  Add new layer to current map.<br>
 	 *  Layer index from start 0. If index grater than maximal index, will throw Exception.
 	 * @param layer  map layer
 	 * @param index given index
-	 * @return   index of layer belongs
 	 */
-	public abstract int addLayer(Layer layer, int index);
+	public abstract void addLayer(Layer layer, int index);
 	
 	/**
 	 * Get layer according to index.

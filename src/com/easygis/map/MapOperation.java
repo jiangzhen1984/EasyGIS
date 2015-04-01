@@ -60,7 +60,7 @@ public interface MapOperation {
 	
 	/**
 	 * Translate offset according coordination unit.<br>
-	 * If offset out of maximal bounds, will ignore
+	 * If offset out of maximal bounds, will ignore.
 	 * @param offsetX   offset of X
 	 * @param offsetY   offset of Y
 	 */

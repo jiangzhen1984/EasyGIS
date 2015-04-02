@@ -34,6 +34,31 @@ public interface MapOperation {
 	
 	
 	/**
+	 * Update scale at specific point
+	 * @param scale
+	 * @param lat
+	 * @param lng
+	 */
+	public void updateScaleAtLatLng(float scale, double lat, double lng);
+	
+	/**
+	 * Update scale at specific point
+	 * @param scale
+	 * @param mx
+	 * @param my
+	 */
+	public void updateScaleAtMeters(float scale, double mx, double my);
+	
+	
+	/**
+	 * Update current map bounds with current zoom
+	 * @param bounds
+	 */
+	public void updateBounds(Bounds bounds);
+	
+	
+	
+	/**
 	 * Update current map bounds
 	 * @param bounds
 	 * @param level
@@ -47,6 +72,13 @@ public interface MapOperation {
 	 * @param lng longitude
 	 */
 	public void centerAt(double lat, double lng);
+	
+	/**
+	 * Set current map center point with current zoom level.
+	 * @param mx x of meters
+	 * @param my y of meters
+	 */
+	public void centerAtMeters(double lat, double lng);
 	
 	
 	/**

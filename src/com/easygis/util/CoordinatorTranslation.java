@@ -64,6 +64,8 @@ import com.easygis.map.Bounds;
  *       </p>
  */
 public class CoordinatorTranslation {
+	
+	private static final double  EQUATOR_R = 6378137D;
 
 	/**
 	 * Default tile size
@@ -73,13 +75,13 @@ public class CoordinatorTranslation {
 	/**
 	 * Default resolution
 	 */
-	public double DEFAULT_INIT_RESOLUTION = 2D * Math.PI * 6378137D
+	public double DEFAULT_INIT_RESOLUTION = 2D * Math.PI * EQUATOR_R
 			/ DEFAULT_TILE_SIZE;
 
 	/**
 	 * 20037508.342789244
 	 */
-	private final double ORIGIN_SHIFT = 2D * Math.PI * 6378137D / 2.0D;
+	private final double ORIGIN_SHIFT = 2D * Math.PI * EQUATOR_R / 2.0D;
 
 	private int mTileSize;
 
@@ -92,7 +94,7 @@ public class CoordinatorTranslation {
 
 	public CoordinatorTranslation(int tileSize) {
 		mTileSize = tileSize;
-		mResoultion = 2D * Math.PI * 6378137D / mTileSize;
+		mResoultion = 2D * Math.PI * EQUATOR_R / mTileSize;
 	}
 
 	/**
@@ -151,7 +153,7 @@ public class CoordinatorTranslation {
 	/**
 	 * "Converts EPSG:900913 to pyramid pixel coordinates in given zoom level"
 	 * 
-	 * @return
+	 * @return []{px, py} 
 	 */
 	public double[] translateMetersToPixels(double mx, double my, int zoom) {
 		double res = resolution(zoom);
@@ -165,9 +167,9 @@ public class CoordinatorTranslation {
 	 * 
 	 * @param px
 	 * @param py
-	 * @return int[row, col]
+	 * @return tx ty
 	 */
-	public int[] translatePixelsToTile(int px, int py) {
+	public int[] translatePixelsToTile(float px, float py) {
 
 		int tx = (int) Math.ceil(px / (float) mTileSize) - 1;
 		int ty = (int) Math.ceil(py / (float) mTileSize) - 1;
@@ -183,21 +185,21 @@ public class CoordinatorTranslation {
 	 */
 	public int[] translateMetersToTile(double mx, double my, int zoom) {
 		double[] pixels = translateMetersToPixels(mx, my, zoom);
-		return translatePixelsToTile((int) pixels[0], (int) pixels[1]);
+		return translatePixelsToTile((float) pixels[0], (float) pixels[1]);
 	}
 
 	/**
 	 * "Returns bounds of the given tile in EPSG:900913 coordinates"
 	 * 
-	 * @param tx
-	 * @param ty
+	 * @param tRow
+	 * @param tCol
 	 * @param zoom
 	 * @return
 	 */
-	public Bounds translateTileBounds(int tx, int ty, int zoom) {
-		double[] min = trasnlatePixelsToMeters(tx * mTileSize,
-				ty * mTileSize, zoom);
-		double[] max = trasnlatePixelsToMeters((tx + 1) * mTileSize, (ty + 1)
+	public Bounds translateTileBounds(int tRow, int tCol, int zoom) {
+		double[] min = trasnlatePixelsToMeters(tRow * mTileSize,
+				tCol * mTileSize, zoom);
+		double[] max = trasnlatePixelsToMeters((tRow + 1) * mTileSize, (tCol + 1)
 				* mTileSize, zoom);
 		return new Bounds(min[0], min[1], max[0], max[1]);
 	}
@@ -205,14 +207,14 @@ public class CoordinatorTranslation {
 	/**
 	 * "Returns a tile covering region in given pixel coordinates"
 	 * 
-	 * @param tx
-	 * @param ty
+	 * @param tRow
+	 * @param tCol
 	 * @param zoom
 	 * @return
 	 */
-	public Bounds transalteTileToLatLonBounds(int tx, int ty, int zoom) {
+	public Bounds transalteTileToLatLonBounds(int tRow, int tCol, int zoom) {
 
-		Bounds bounds = translateTileBounds(tx, ty, zoom);
+		Bounds bounds = translateTileBounds(tRow, tCol, zoom);
 		double[] min = translateMetersToLatLon(bounds.left, bounds.top);
 		double[] max = translateMetersToLatLon(bounds.right, bounds.bottom);
 		return new Bounds(min[0], min[1], max[0], max[1]);
@@ -225,5 +227,15 @@ public class CoordinatorTranslation {
 	 */
 	public double resolution(int zoom) {
 		return mResoultion / Math.pow(2 , zoom);
+	}
+	
+	/**
+	 * 
+	 * @param zoom
+	 * @return
+	 */
+	public double scale(int zoom) {
+		double res = resolution(zoom);
+		return res * 96 / 0.0254;
 	}
 }

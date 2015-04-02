@@ -1,5 +1,7 @@
 package com.easygis.map;
 
+import com.easygis.util.CoordinatorTranslation;
+
 /**
  * Map class definition.<br>
  * <ul>This class just define map attributes: scale bounds level resolution etc.</ul>
@@ -18,6 +20,12 @@ public abstract class EMap implements MapOperation {
 	
 	protected double mScale;
 	
+	protected int mZoom;
+	
+	protected double mResolution;
+	
+	protected CoordinatorTranslation mTranslation;
+	
 	/**
 	 * Load initial map configuration information
 	 * @param loader
@@ -32,7 +40,34 @@ public abstract class EMap implements MapOperation {
 			return false;
 		}
 		
+		this.mBounds = mMapInfo.mInitialExtent;
+		this.mZoom = mMapInfo.mInitialZoom;
+		this.mResolution = mMapInfo.mInitialResolution;
+		this.mTranslation = new CoordinatorTranslation((int)mMapInfo.mTileWidth);
 		return true;
+	}
+	
+	
+	/**
+	 * Load initial map configuration information
+	 * @param mapInfo
+	 * @return
+	 */
+	public boolean initMapInfo(MapInfo mapInfo) {
+		mMapInfo = mapInfo;
+		if (mMapInfo == null) {
+			return false;
+		}
+		this.mBounds = mMapInfo.mInitialExtent;
+		this.mZoom = mMapInfo.mInitialZoom;
+		this.mResolution = mMapInfo.mInitialResolution;
+		this.mTranslation = new CoordinatorTranslation((int)mMapInfo.mTileWidth);
+		return true;
+	}
+	
+	
+	public CoordinatorTranslation getTranslation() {
+		return this.mTranslation;
 	}
 
 

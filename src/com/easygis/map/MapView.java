@@ -142,6 +142,7 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			onTouchDown(event);
 			break;
 		case MotionEvent.ACTION_POINTER_DOWN:
+			initDist = spacing(event);
 			updateMode(OPMode.SCALE);
 			break;
 		case MotionEvent.ACTION_MOVE:
@@ -173,6 +174,7 @@ public class MapView extends ViewGroup implements OnTouchListener {
 	int lastY = 0;
 	int offsetX = 0;
 	int offsetY = 0;
+	float initDist = 0.0F;
 
 	private void onTouchDown(MotionEvent event) {
 		if (mCheckForLongPress == null) {
@@ -290,16 +292,19 @@ public class MapView extends ViewGroup implements OnTouchListener {
 	
 	
 	private void doScale(MotionEvent event) {
-		 float x = event.getX(0) - event.getX(1);
-         float y = event.getY(0) - event.getY(1);
-         float scale =  (float)Math.sqrt(x * x + y * y);
-         
          CoordinatorTranslation translation = mEMap.getTranslation();
-         
         int px = (int)(event.getX(0) + event.getX(1)) / 2;
         int py = (int)(event.getY(0) + event.getY(1)) / 2;
         double[] meters = translation.trasnlatePixelsToMeters(px, py, mEMap.mZoom);
-        mEMap.updateScaleAtMeters(scale, meters[0], meters[1]);
+        float newDist=  spacing(event);
+        mEMap.updateScaleAtMeters(newDist / initDist, meters[0], meters[1]);
+	}
+	
+	
+	private float spacing(MotionEvent event) {
+		 float x = event.getX(0) - event.getX(1);
+         float y = event.getY(0) - event.getY(1);
+        return (float)Math.sqrt(x * x + y * y);
 	}
 
 	/**
@@ -409,32 +414,51 @@ public class MapView extends ViewGroup implements OnTouchListener {
 
 		@Override
 		public void zoomIn() {
-			// TODO Auto-generated method stub
+			if (mEMap.mZoom < mEMap.mMapInfo.mSupportedLevels.length - 1) {
+				Bounds bounds = new Bounds();
+				bounds.left = mBounds.left / 2;
+				bounds.top = mBounds.top / 2;
+				bounds.right = mBounds.right / 2;
+				bounds.bottom = mBounds.bottom / 2;
+				mEMap.updateBounds(bounds, getMap().mZoom + 1);
+			}
 
 		}
 
 		@Override
 		public void zoomOut() {
-			// TODO Auto-generated method stub
+			if (mEMap.mZoom > 0) {
+				Bounds bounds = new Bounds();
+				bounds.left = mBounds.left * 2;
+				bounds.top = mBounds.top * 2;
+				bounds.right = mBounds.right * 2;
+				bounds.bottom = mBounds.bottom * 2;
+				mEMap.updateBounds(bounds, getMap().mZoom - 1);
+			}
 
 		}
 
 		@Override
 		public void updateScale(float scale) {
-			// TODO Auto-generated method stub
-
+			double x = (mBounds.right - mBounds.right) / 2;
+			double y = (mBounds.bottom - mBounds.top) /2;
+			updateScaleAtMeters(scale, x, y);
 		}
 
 		@Override
 		public void updateScaleAtLatLng(float scale, double lat, double lng) {
-			// TODO Auto-generated method stub
-
+			double[] mx = this.mTranslation.translateLatLonToMeters(lat, lng);
+			updateScaleAtMeters(scale, mx[0], mx[1]);
 		}
 
 		@Override
 		public void updateScaleAtMeters(float scale, double mx, double my) {
-			this.mResolution *= scale;
-
+			this.mResolution /= scale;
+			this.mScale /= scale;
+			int count = getChildCount();
+			for (int i = 0; i < count; i++) {
+				((Layer) getChildAt(i)).scale(scale);
+			}
 		}
 
 		@Override
@@ -442,7 +466,6 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			this.mZoom = level;
 			this.mResolution = mTranslation.resolution(level);
 			this.mBounds = bounds;
-			// TODO update resolution
 			// TODO update scale
 
 			int count = getChildCount();
@@ -458,19 +481,28 @@ public class MapView extends ViewGroup implements OnTouchListener {
 
 		@Override
 		public void centerAt(double lat, double lng) {
-			// TODO Auto-generated method stub
+			double[] mx = this.mTranslation.translateLatLonToMeters(lat, lng);
+			centerAtMeters(mx[0], mx[1], mZoom);
 		}
 
-		@Override
-		public void centerAtMeters(double lat, double lng) {
-			// TODO Auto-generated method stub
-
-		}
 
 		@Override
 		public void centerAt(double lat, double lng, int level) {
-			// TODO Auto-generated method stub
+			double[] mx = this.mTranslation.translateLatLonToMeters(lat, lng);
+			centerAtMeters(mx[0], mx[1], mZoom);
+		}
+		
+		@Override
+		public void centerAtMeters(double mx, double my) {
+			centerAtMeters(mx, my, mZoom);
+		}
+		
+		
 
+		@Override
+		public void centerAtMeters(double mx, double my, int level) {
+			// TODO Auto-generated method stub
+			
 		}
 
 		@Override

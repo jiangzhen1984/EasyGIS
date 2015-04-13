@@ -9,7 +9,7 @@ import java.text.DecimalFormat;
  * 
  */
 public final class Bounds {
-	
+
 	public double left;
 	public double top;
 	public double right;

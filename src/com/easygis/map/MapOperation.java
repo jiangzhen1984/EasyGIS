@@ -73,13 +73,6 @@ public interface MapOperation {
 	 */
 	public void centerAt(double lat, double lng);
 	
-	/**
-	 * Set current map center point with current zoom level.
-	 * @param mx x of meters
-	 * @param my y of meters
-	 */
-	public void centerAtMeters(double lat, double lng);
-	
 	
 	/**
 	 * Set current map center point with current zoom level.<br>
@@ -88,6 +81,22 @@ public interface MapOperation {
 	 * @param level
 	 */
 	public void centerAt(double lat, double lng, int level);
+	
+	/**
+	 * Set current map center point with current zoom level.
+	 * @param mx x of meters
+	 * @param my y of meters
+	 */
+	public void centerAtMeters(double mx, double my);
+	
+	/**
+	 * Set current map center point with current zoom level.
+	 * @param mx x of meters
+	 * @param my y of meters
+	 * @param zoom level
+	 */
+	public void centerAtMeters(double mx, double my, int level);
+	
 	
 	
 	/**

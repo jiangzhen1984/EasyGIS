@@ -6,11 +6,13 @@ import java.util.List;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.os.Handler;
 import android.os.HandlerThread;
 
 import com.easygis.map.Bounds;
+import com.easygis.map.EMap;
 import com.easygis.map.Layer;
 import com.easygis.map.MapInfo;
 import com.easygis.map.Tile;
@@ -18,8 +20,8 @@ import com.easygis.util.CoordinatorTranslation;
 import com.easygis.util.EGISLog;
 
 public class TileLayer extends Layer {
-
-	private MapInfo mMapInfo;
+	
+	private EMap mMap;
 
 	private TileLayerDataLoader mTileLoader;
 
@@ -28,8 +30,6 @@ public class TileLayer extends Layer {
 	private Bitmap mBufferedBitmap;
 
 	private Bitmap mBackgroundBitmap;
-
-	private int mZoom;
 
 	private Bounds mBounds;
 
@@ -46,23 +46,22 @@ public class TileLayer extends Layer {
 
 	private Paint paint = new Paint();
 
-	public TileLayer(Context context, MapInfo mMapInfo) {
+	public TileLayer(Context context, EMap map) {
 		super(context);
-		updateMapInfo(mMapInfo);
+		updateMapInfo(map);
 	}
 
-	public TileLayer(Context context, MapInfo mMapInfo,
+	public TileLayer(Context context, EMap map,
 			TileLayerDataLoader mTileLoader) {
 		super(context);
-		updateMapInfo(mMapInfo);
+		updateMapInfo(map);
 		this.mTileLoader = mTileLoader;
 	}
 
-	public void updateMapInfo(MapInfo mapInfo) {
-		this.mMapInfo = mapInfo;
-		this.mZoom = this.mMapInfo.mInitialZoom;
+	public void updateMapInfo(EMap map) {
+		this.mMap = map;
 		mTranslation = new CoordinatorTranslation(
-				(int) this.mMapInfo.mTileWidth);
+				(int)mMap.getMapInfo().mTileWidth);
 		startRender();
 	}
 
@@ -89,10 +88,13 @@ public class TileLayer extends Layer {
 		mMessageHandler.postAtFrontOfQueue(mConfigRunnable);
 	}
 
+	private Matrix m = new Matrix();
+	float scale = 1.0F;
 	@Override
 	protected void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
 		int savePoint = canvas.save();
+		canvas.scale(scale, scale);
 		if (mBufferedBitmap != null) {
 			canvas.drawBitmap(mBufferedBitmap, 0, 0, paint);
 		}
@@ -109,8 +111,14 @@ public class TileLayer extends Layer {
 
 	@Override
 	public void updateBounds(Bounds bounds, int zoom) {
-		mZoom = zoom;
 		updateBounds(bounds);
+	}
+	
+	
+
+	@Override
+	protected void scale(float sc) {
+		scale *= sc;
 	}
 
 	private void drawTile(List<PixelTile> tileList, Bitmap target) {
@@ -201,20 +209,21 @@ public class TileLayer extends Layer {
 
 		@Override
 		public void run() {
-			int tileWidth = (int)mMapInfo.mTileWidth;
-			int tileHeight = (int) mMapInfo.mTileHeight;
+			int zoom =  mMap.getZoom();
+			int tileWidth = (int)mMap.getMapInfo().mTileWidth;
+			int tileHeight = (int) mMap.getMapInfo().mTileHeight;
 			long start = System.currentTimeMillis();
 			int[] topLeft = mTranslation.translateMetersToTile(mBounds.left,
-					mBounds.top, mZoom);
+					mBounds.top, zoom);
 			int[] bottomRight = mTranslation.translateMetersToTile(
-					mBounds.right, mBounds.bottom, mZoom);
+					mBounds.right, mBounds.bottom, zoom);
 			int startRow = topLeft[1];
 			int endRow = bottomRight[1];
 			int startCol = topLeft[0];
 			int endCol = bottomRight[0];
 
 			double[] pixels = mTranslation.translateMetersToPixels(
-					mBounds.left, mBounds.top, mZoom);
+					mBounds.left, mBounds.top, zoom);
 			int offsetX = (int) -(pixels[0] - startCol * tileWidth);
 			int offsetY = (int) -(pixels[1] - startRow * tileHeight);
 
@@ -243,8 +252,8 @@ public class TileLayer extends Layer {
 					+ endRow + "," + endCol + "   offsetX:" + offsetX
 					+ "  offsetY:" + offsetY);
 			List<PixelTile> list = new ArrayList<PixelTile>();
-			int maxRow = mMapInfo.mSupportedLevels[mZoom].mEndRow;
-			int maxCol = mMapInfo.mSupportedLevels[mZoom].mEndCol;
+			int maxRow = mMap.getMapInfo().mSupportedLevels[zoom].mEndRow;
+			int maxCol = mMap.getMapInfo().mSupportedLevels[zoom].mEndCol;
 			for (int i = startRow, indexI = 0; i <= endRow; i++, indexI++) {
 				for (int j = startCol, indexJ = 0; j <= endCol; j++, indexJ++) {
 					int tileOffsetX = offsetX + indexJ
@@ -252,7 +261,7 @@ public class TileLayer extends Layer {
 					int tileOffsetY = offsetY + indexI
 							* (int) tileHeight;
 					if (j <= maxCol && i <= maxRow) {
-						Tile tile = mTileLoader.getTile(i, j, mZoom);
+						Tile tile = mTileLoader.getTile(i, j, zoom);
 						if (tile != null && tile.mTileData != null) {
 							list.add(new PixelTile(tileOffsetX,
 									tileOffsetY, tile));

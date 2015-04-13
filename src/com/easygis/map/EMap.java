@@ -65,9 +65,20 @@ public abstract class EMap implements MapOperation {
 		return true;
 	}
 	
-	
+	/**
+	 * Get current map translation utility
+	 * @return
+	 */
 	public CoordinatorTranslation getTranslation() {
 		return this.mTranslation;
+	}
+	
+	/**
+	 * Get map configuration information
+	 * @return
+	 */
+	public MapInfo getMapInfo() {
+		return this.mMapInfo;
 	}
 
 
@@ -97,6 +108,10 @@ public abstract class EMap implements MapOperation {
 		return new double[]{(mBounds.right - mBounds.left) / 2, (mBounds.bottom - mBounds.top) / 2};
 	}
 	
+	
+	public int getZoom() {
+		return mZoom;
+	}
 	
 	/**
 	 * Add new layer to current map.<br>

@@ -20,9 +20,12 @@ public abstract class Layer extends View {
 
 
 	
-	public abstract void updateBounds(Bounds bounds);
+	protected abstract void updateBounds(Bounds bounds);
 	
 	
-	public abstract void updateBounds(Bounds bounds, int zoom);
+	protected abstract void updateBounds(Bounds bounds, int zoom);
+	
+	
+	protected abstract void scale(float scale);
 	
 }

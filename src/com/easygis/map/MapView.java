@@ -1,6 +1,8 @@
 package com.easygis.map;
 
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -9,6 +11,7 @@ import android.view.View;
 import android.view.View.OnTouchListener;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.widget.OverScroller;
 
 import com.easygis.util.CoordinatorTranslation;
 import com.easygis.util.EGISLog;
@@ -38,6 +41,12 @@ public class MapView extends ViewGroup implements OnTouchListener {
 	private long mLastTouchUpTime = 0;
 
 	private OPMode mOPMode = OPMode.NONE;
+
+
+	/**
+	 * Use to fling when touch up
+	 */
+	private FlingRunnable mFling;
 
 	public MapView(Context context) {
 		super(context);
@@ -99,8 +108,6 @@ public class MapView extends ViewGroup implements OnTouchListener {
 		int action = ev.getAction();
 		initVelocityTrackerIfNotExists();
 
-		mVelocityTracker.addMovement(ev);
-
 		switch (action) {
 		case MotionEvent.ACTION_DOWN:
 			break;
@@ -111,12 +118,24 @@ public class MapView extends ViewGroup implements OnTouchListener {
 		}
 		return false;
 	}
+	
+	
+
+	private Matrix m = new Matrix();
+	@Override
+	protected void dispatchDraw(Canvas canvas) {
+		super.dispatchDraw(canvas);
+	}
 
 	@Override
 	public boolean onTouch(View v, MotionEvent event) {
 		int mask = event.getActionMasked();
+		mVelocityTracker.addMovement(event);
 		switch (mask & MotionEvent.ACTION_MASK) {
 		case MotionEvent.ACTION_DOWN:
+			if (mFling != null) {
+				mFling.endFling();
+			}
 			// Remove delayed callback for double tap
 			removeCallbacks(mPerformClick);
 			updateMode(OPMode.TAP);
@@ -176,9 +195,8 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			mEMap.translate(deltaX, deltaY, CoordinationUnit.PIXEL);
 			lastX = (int) event.getX();
 			lastY = (int) event.getY();
-			Log.d(TAG, "draging2==============");
 		} else if (mOPMode == OPMode.SCALE) {
-			Log.d(TAG, "scaling==============");
+			doScale(event);
 		}
 
 		removeCallbacks(mCheckForLongPress);
@@ -200,7 +218,7 @@ public class MapView extends ViewGroup implements OnTouchListener {
 				updateMode(OPMode.NONE);
 			}
 		} else if (mOPMode == OPMode.DRAG) {
-			// TODO fliing
+			doScroll();
 		} else if (mOPMode == OPMode.DOUBLE_TAPS) {
 			if (mPerformDoubleClick == null) {
 				mPerformDoubleClick = new PerformDoubleClick();
@@ -209,14 +227,12 @@ public class MapView extends ViewGroup implements OnTouchListener {
 				performDoubleClick();
 				updateMode(OPMode.NONE);
 			}
-			
-			doDoubleTapZoomIn((int)event.getX(), (int)event.getY());
+
+			doDoubleTapZoomIn((int) event.getX(), (int) event.getY());
 		}
 		downX = 0;
 		downY = 0;
 	}
-	
-	
 
 	private synchronized void updateMode(OPMode mode) {
 		this.mOPMode = mode;
@@ -234,33 +250,118 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			mVelocityTracker = null;
 		}
 	}
-	
-	//04-09 18:12:54.189: I/EGIS(5756): new bounds:[ 3404810.987934119,-1.718059797359984E7 -  2.3442319330718026E7,2856910.369184077]
 
-	
 	private void doDoubleTapZoomIn(int x, int y) {
 		if (mEMap.mZoom == mEMap.mMapInfo.mSupportedLevels.length - 1) {
 			EGISLog.i("max level reached");
 			return;
 		}
-		EGISLog.e(mEMap.mBounds.toString());
 		CoordinatorTranslation translation = mEMap.getTranslation();
-		double[] worldPx= translation.translateMetersToPixels(mEMap.mBounds.left, mEMap.mBounds.top, mEMap.mZoom);
-		double[] meters = translation.trasnlatePixelsToMeters((int)(worldPx[0] + x), (int)(worldPx[1] + y), mEMap.mZoom);
-		EGISLog.e(meters[0] +"   "+ meters[1]);
+		double[] worldPx = translation.translateMetersToPixels(
+				mEMap.mBounds.left, mEMap.mBounds.top, mEMap.mZoom);
+		double[] meters = translation.trasnlatePixelsToMeters(
+				(int) (worldPx[0] + x), (int) (worldPx[1] + y), mEMap.mZoom);
 		double resoultion = translation.resolution(mEMap.mZoom + 1);
 		int viewWidth = getWidth() / 2;
 		int viewHeight = getHeight() / 2;
 		Bounds bounds = new Bounds();
 		bounds.left = meters[0] - viewWidth * resoultion;
 		bounds.top = meters[1] - viewHeight * resoultion;
-		
+
 		bounds.right = meters[0] + viewWidth * resoultion;
 		bounds.bottom = meters[1] + viewHeight * resoultion;
-		EGISLog.e(bounds.toString());
 		mEMap.updateBounds(bounds, getMap().mZoom + 1);
 	}
+
+	/**
+	 * Start scroll
+	 */
+	private void doScroll() {
+		updateMode(OPMode.SCROLLING);
+		if (mFling == null) {
+			mFling = new FlingRunnable();
+		}
+		mVelocityTracker.computeCurrentVelocity(1000);
+
+		mFling.start(-(int) mVelocityTracker.getXVelocity(),
+				-(int) mVelocityTracker.getYVelocity());
+	}
 	
+	
+	
+	private void doScale(MotionEvent event) {
+		 float x = event.getX(0) - event.getX(1);
+         float y = event.getY(0) - event.getY(1);
+         float scale =  (float)Math.sqrt(x * x + y * y);
+         
+         CoordinatorTranslation translation = mEMap.getTranslation();
+         
+        int px = (int)(event.getX(0) + event.getX(1)) / 2;
+        int py = (int)(event.getY(0) + event.getY(1)) / 2;
+        double[] meters = translation.trasnlatePixelsToMeters(px, py, mEMap.mZoom);
+        mEMap.updateScaleAtMeters(scale, meters[0], meters[1]);
+	}
+
+	/**
+	 * Use to fling map when touch up event receive.
+	 * 
+	 * @author 28851274 
+	 * 
+	 */
+	private class FlingRunnable implements Runnable {
+
+		private final OverScroller mScroller;
+
+		private int mLastFlingY;
+
+		private int mLastFlingX;
+
+		public FlingRunnable() {
+			mScroller = new OverScroller(getContext());
+		}
+
+		void start(int initialXVelocity, int initialYVelocity) {
+			int initialY = initialYVelocity < 0 ? Integer.MAX_VALUE : 0;
+			mLastFlingY = initialY;
+
+			int initialX = initialXVelocity < 0 ? Integer.MAX_VALUE : 0;
+			mLastFlingX = initialX;
+
+			mScroller.fling(initialX, initialY, initialXVelocity,
+					initialYVelocity, 0, Integer.MAX_VALUE, 0,
+					Integer.MAX_VALUE);
+			post(this);
+
+		}
+
+		void endFling() {
+			updateMode(OPMode.NONE);
+			removeCallbacks(this);
+		}
+
+		@Override
+		public void run() {
+			if (mOPMode != OPMode.SCROLLING) {
+				return;
+			}
+			boolean more = mScroller.computeScrollOffset();
+			int y = mScroller.getCurrY();
+			int x = mScroller.getCurrX();
+
+			int deltaY = mLastFlingY - y;
+			int deltaX = mLastFlingX - x;
+			if (more) {
+				mEMap.translate(deltaX, deltaY, CoordinationUnit.PIXEL);
+				post(this);
+			} else {
+				updateMode(OPMode.NONE);
+			}
+
+			 mLastFlingY = y;
+			 mLastFlingX = x;
+		}
+
+	}
 
 	public EMap getMap() {
 		return mEMap;
@@ -306,7 +407,6 @@ public class MapView extends ViewGroup implements OnTouchListener {
 
 	private EMap mEMap = new EMap() {
 
-		
 		@Override
 		public void zoomIn() {
 			// TODO Auto-generated method stub
@@ -324,19 +424,17 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			// TODO Auto-generated method stub
 
 		}
-		
-		
 
 		@Override
 		public void updateScaleAtLatLng(float scale, double lat, double lng) {
 			// TODO Auto-generated method stub
-			
+
 		}
 
 		@Override
 		public void updateScaleAtMeters(float scale, double mx, double my) {
-			// TODO Auto-generated method stub
-			
+			this.mResolution *= scale;
+
 		}
 
 		@Override
@@ -344,16 +442,14 @@ public class MapView extends ViewGroup implements OnTouchListener {
 			this.mZoom = level;
 			this.mResolution = mTranslation.resolution(level);
 			this.mBounds = bounds;
-			//TODO update resolution
-			//TODO update scale
-			
+			// TODO update resolution
+			// TODO update scale
+
 			int count = getChildCount();
 			for (int i = 0; i < count; i++) {
-				((Layer)getChildAt(i)).updateBounds(bounds, level);
+				((Layer) getChildAt(i)).updateBounds(bounds, level);
 			}
 		}
-		
-		
 
 		@Override
 		public void updateBounds(Bounds bounds) {
@@ -364,12 +460,11 @@ public class MapView extends ViewGroup implements OnTouchListener {
 		public void centerAt(double lat, double lng) {
 			// TODO Auto-generated method stub
 		}
-		
 
 		@Override
 		public void centerAtMeters(double lat, double lng) {
 			// TODO Auto-generated method stub
-			
+
 		}
 
 		@Override
@@ -381,10 +476,10 @@ public class MapView extends ViewGroup implements OnTouchListener {
 		@Override
 		public void translate(double offsetX, double offsetY,
 				CoordinationUnit unit) {
-			EGISLog.i("trasnlateX:" +offsetX +" translateY:"+offsetY);
+			EGISLog.i("trasnlateX:" + offsetX + " translateY:" + offsetY);
 			double mx = 0;
 			double my = 0;
-			
+
 			switch (unit) {
 			case PIXEL:
 				mx = this.mResolution * offsetX;
@@ -397,43 +492,44 @@ public class MapView extends ViewGroup implements OnTouchListener {
 				my = offsetY;
 				break;
 			}
-			
-			EGISLog.i("olad bounds:" +this.mBounds);
-			if (this.mBounds.right - mx > this.mMapInfo.mFullExtent.right){
-				double offsetM =  this.mBounds.right  - this.mMapInfo.mFullExtent.right;
+
+			EGISLog.i("olad bounds:" + this.mBounds);
+			if (this.mBounds.right - mx > this.mMapInfo.mFullExtent.right) {
+				double offsetM = this.mBounds.right
+						- this.mMapInfo.mFullExtent.right;
 				this.mBounds.right = this.mMapInfo.mFullExtent.right;
 				this.mBounds.left -= offsetM;
-			} else if (this.mBounds.left - mx  <  this.mMapInfo.mFullExtent.left){
-				double offsetM =  this.mBounds.left  - this.mMapInfo.mFullExtent.left;
+			} else if (this.mBounds.left - mx < this.mMapInfo.mFullExtent.left) {
+				double offsetM = this.mBounds.left
+						- this.mMapInfo.mFullExtent.left;
 				this.mBounds.left = this.mMapInfo.mFullExtent.left;
 				this.mBounds.right -= offsetM;
-			} else 	{
+			} else {
 				this.mBounds.left -= mx;
 				this.mBounds.right -= mx;
 			}
-			
+
 			if (this.mBounds.bottom - my >= this.mMapInfo.mFullExtent.bottom) {
-				
-				double offsetM = this.mBounds.bottom - this.mMapInfo.mFullExtent.bottom;
-				this.mBounds.top -=  offsetM;
+
+				double offsetM = this.mBounds.bottom
+						- this.mMapInfo.mFullExtent.bottom;
+				this.mBounds.top -= offsetM;
 				this.mBounds.bottom = this.mMapInfo.mFullExtent.bottom;
-				
-			} else if( this.mBounds.top - my <= this.mMapInfo.mFullExtent.top) {
-				double offsetM = this.mBounds.top - this.mMapInfo.mFullExtent.top;
-				this.mBounds.top =  this.mMapInfo.mFullExtent.top;
+
+			} else if (this.mBounds.top - my <= this.mMapInfo.mFullExtent.top) {
+				double offsetM = this.mBounds.top
+						- this.mMapInfo.mFullExtent.top;
+				this.mBounds.top = this.mMapInfo.mFullExtent.top;
 				this.mBounds.bottom -= offsetM;
 			} else {
 				this.mBounds.top -= my;
 				this.mBounds.bottom -= my;
 			}
-		
-			
-			EGISLog.i("new bounds:" +this.mBounds);
+
+			EGISLog.i("new bounds:" + this.mBounds);
 			Bounds newBounds = new Bounds(mBounds);
 			updateBounds(newBounds);
 		}
-		
-		
 
 		@Override
 		public void addLayer(Layer layer) {

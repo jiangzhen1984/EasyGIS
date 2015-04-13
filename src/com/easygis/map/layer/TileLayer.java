@@ -26,7 +26,7 @@ public class TileLayer extends Layer {
 	private List<PixelTile> mCurrentTiles = new ArrayList<PixelTile>();
 
 	private Bitmap mBufferedBitmap;
-	
+
 	private Bitmap mBackgroundBitmap;
 
 	private int mZoom;
@@ -77,14 +77,14 @@ public class TileLayer extends Layer {
 		super.onDetachedFromWindow();
 		stopRender();
 		if (mBufferedBitmap != null) {
-			EGISLog.i(mBufferedBitmap+" is recycled");
+			EGISLog.i(mBufferedBitmap + " is recycled");
 			mBufferedBitmap.recycle();
 		}
 	}
 
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right,
-			int bottom) { 
+			int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
 		mMessageHandler.postAtFrontOfQueue(mConfigRunnable);
 	}
@@ -93,8 +93,9 @@ public class TileLayer extends Layer {
 	protected void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
 		int savePoint = canvas.save();
-
-		canvas.drawBitmap(mBufferedBitmap, 0, 0, paint);
+		if (mBufferedBitmap != null) {
+			canvas.drawBitmap(mBufferedBitmap, 0, 0, paint);
+		}
 		canvas.restoreToCount(savePoint);
 	}
 
@@ -121,8 +122,7 @@ public class TileLayer extends Layer {
 			postInvalidate();
 		}
 	}
-	
-	
+
 	private void startRender() {
 		if (!mWorker.isAlive()) {
 			mWorker.start();
@@ -139,7 +139,7 @@ public class TileLayer extends Layer {
 			mLock.notify();
 		}
 	}
-	
+
 	private void stopRender() {
 		mMessageQueue.quit();
 		mMessageHandler = null;
@@ -176,11 +176,11 @@ public class TileLayer extends Layer {
 							e.printStackTrace();
 						}
 					}
-					
+
 					if (mState != WorkerState.RENDER) {
 						continue;
 					}
-					//Until bitmap is not null
+					// Until bitmap is not null
 					while (mBufferedBitmap == null) {
 						try {
 							mLock.wait(100);
@@ -189,7 +189,6 @@ public class TileLayer extends Layer {
 						}
 					}
 					drawTile(mCurrentTiles, mBufferedBitmap);
-
 					mState = WorkerState.DONE;
 
 				}
@@ -202,73 +201,80 @@ public class TileLayer extends Layer {
 
 		@Override
 		public void run() {
-			synchronized (mLock) {
-				int[] topLeft = mTranslation.translateMetersToTile(
-						mBounds.left, mBounds.top, mZoom);
-				int[] bottomRight = mTranslation.translateMetersToTile(
-						mBounds.right, mBounds.bottom, mZoom);
-				int startRow = topLeft[1];
-				int endRow = bottomRight[1];
-				int startCol = topLeft[0];
-				int endCol = bottomRight[0];
+			int tileWidth = (int)mMapInfo.mTileWidth;
+			int tileHeight = (int) mMapInfo.mTileHeight;
+			long start = System.currentTimeMillis();
+			int[] topLeft = mTranslation.translateMetersToTile(mBounds.left,
+					mBounds.top, mZoom);
+			int[] bottomRight = mTranslation.translateMetersToTile(
+					mBounds.right, mBounds.bottom, mZoom);
+			int startRow = topLeft[1];
+			int endRow = bottomRight[1];
+			int startCol = topLeft[0];
+			int endCol = bottomRight[0];
 
+			double[] pixels = mTranslation.translateMetersToPixels(
+					mBounds.left, mBounds.top, mZoom);
+			int offsetX = (int) -(pixels[0] - startCol * tileWidth);
+			int offsetY = (int) -(pixels[1] - startRow * tileHeight);
 
-				double[] pixels = mTranslation.translateMetersToPixels(
-						mBounds.left, mBounds.top, mZoom);
-				int offsetX = (int) -(pixels[0] - startCol
-						* mMapInfo.mTileWidth);
-				int offsetY = (int) -(pixels[1] - startRow
-						* mMapInfo.mTileHeight);
+			EGISLog.i(startRow + "," + startCol + " - " + endRow + "," + endCol
+					+ "   offsetX:" + offsetX + "  offsetY:" + offsetY
+					+ "  px:" + pixels[0] + "  py:" + pixels[1]);
+			if (offsetX > 0) {
+				startCol -= 1;
+				offsetX -= tileWidth;
+			} else if (offsetX < 0 && Math.abs(offsetX) > (int)tileWidth) {
+				startCol += 1;
+				offsetX += tileWidth;
+			}
 
-				EGISLog.i(startRow + "," + startCol + " - " + endRow + ","
-						+ endCol + "   offsetX:" + offsetX + "  offsetY:"
-						+ offsetY+"  px:" +pixels[0]+"  py:"+pixels[1]);
-				if (offsetX > 0) {
-					startCol -= 1;
-					offsetX -= mMapInfo.mTileWidth;
-				} else if (offsetX < 0
-						&& Math.abs(offsetX) > mMapInfo.mTileWidth) {
-					startCol += 1;
-					offsetX += mMapInfo.mTileWidth;
-				}
+			if (offsetY > 0) {
+				startRow -= 1;
+				offsetY -= tileHeight;
+			} else if (offsetY < 0 && Math.abs(offsetY) > (int)tileHeight) {
+				startRow += 1;
+				offsetY += tileHeight;
+			}
 
-				if (offsetY > 0) {
-					startRow -= 1;
-					offsetY -= mMapInfo.mTileHeight;
-				} else if (offsetY < 0
-						&& Math.abs(offsetY) > mMapInfo.mTileHeight) {
-					startRow += 1;
-					offsetY += mMapInfo.mTileHeight;
-				}
-
-				EGISLog.i("After adjust:" + startRow + "," + startCol + " - "
-						+ endRow + "," + endCol + "   offsetX:" + offsetX
-						+ "  offsetY:" + offsetY);
-
-				mCurrentTiles.clear();
-				for (int i = startRow, indexI = 0; i <= endRow; i++, indexI++) {
-					for (int j = startCol, indexJ = 0; j <= endCol; j++, indexJ++) {
-						int tileOffsetX = offsetX + indexJ
-								* (int) mMapInfo.mTileWidth;
-						int tileOffsetY = offsetY + indexI
-								* (int) mMapInfo.mTileHeight;
+			
+			long start0 = System.currentTimeMillis();
+			EGISLog.i("After adjust:" + startRow + "," + startCol + " - "
+					+ endRow + "," + endCol + "   offsetX:" + offsetX
+					+ "  offsetY:" + offsetY);
+			List<PixelTile> list = new ArrayList<PixelTile>();
+			int maxRow = mMapInfo.mSupportedLevels[mZoom].mEndRow;
+			int maxCol = mMapInfo.mSupportedLevels[mZoom].mEndCol;
+			for (int i = startRow, indexI = 0; i <= endRow; i++, indexI++) {
+				for (int j = startCol, indexJ = 0; j <= endCol; j++, indexJ++) {
+					int tileOffsetX = offsetX + indexJ
+							* (int) tileWidth;
+					int tileOffsetY = offsetY + indexI
+							* (int) tileHeight;
+					if (j <= maxCol && i <= maxRow) {
 						Tile tile = mTileLoader.getTile(i, j, mZoom);
 						if (tile != null && tile.mTileData != null) {
-							mCurrentTiles.add(new PixelTile(tileOffsetX,
+							list.add(new PixelTile(tileOffsetX,
 									tileOffsetY, tile));
 						} else {
-							EGISLog.e("row : " + i + "  col:" + j + "  bitmap is null");
+							EGISLog.e("row : " + i + "  col:" + j
+									+ "  bitmap is null");
 						}
-//						EGISLog.d("row : " + i + "  col:" + j + "  offsetX:"
-//								+ tileOffsetX + "  tileOffsetY:" + tileOffsetY
-//								+ "  mZoom:" + mZoom);
 					}
 				}
-
+			}
+			
+			
+			
+			long start1 = System.currentTimeMillis();
+			synchronized (mLock) {
+				mCurrentTiles.clear();
+				mCurrentTiles.addAll(list);
 				mState = WorkerState.RENDER;
 				mLock.notify();
 			}
-
+			long end = System.currentTimeMillis();
+			EGISLog.e("updateBounds cost:"+(end - start)+"   "+(start1 -start)+"   "+(start0 -start));
 		}
 
 	};
@@ -300,7 +306,7 @@ public class TileLayer extends Layer {
 					}
 				}
 
-				EGISLog.i("mBufferedBitmap......" + mBufferedBitmap);
+				EGISLog.i("reconfig bitmap ["+width+","+height+"]......" + mBufferedBitmap);
 				mState = WorkerState.RENDER;
 				mLock.notify();
 			}
